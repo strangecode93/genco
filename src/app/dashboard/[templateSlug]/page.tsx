@@ -1,4 +1,3 @@
-/* eslint-disable prefer-const */
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -6,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { contentTemplates } from "@/lib/content-templates";
 import { Loader } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Editor } from "./_components/editor";
 import { chatSession } from "@/lib/gemini-ai";
 import axios from "axios";
@@ -15,18 +14,33 @@ interface templateSlugProps {
   templateSlug: string;
 }
 
-const TemplatePage = ({ params }: { params: templateSlugProps }) => {
+const TemplatePage = ({ params }: { params: Promise<templateSlugProps> }) => {
   const [isLoading, setisLoading] = useState(false);
   const [aiOutput, setAIOutput] = useState<string>("");
 
-  const selectedTemplate = contentTemplates.find(
-    (item) => item.slug === params.templateSlug
-  );
+  const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
+  const [resolvedParams, setResolvedParams] = useState<templateSlugProps | null>(null);
+
+  // Unwrapping the promise to access params correctly
+  useEffect(() => {
+    params.then((resolved) => {
+      setResolvedParams(resolved);
+    });
+  }, [params]);
+
+  useEffect(() => {
+    if (resolvedParams) {
+      const template = contentTemplates.find(
+        (item) => item.slug === resolvedParams.templateSlug
+      );
+      setSelectedTemplate(template);
+    }
+  }, [resolvedParams]);
 
   const generateAIContent = async (formData: FormData) => {
     setisLoading(true);
     try {
-      let dataSet = {
+      const dataSet = {
         title: formData.get("title"),
         description: formData.get("description"),
       };
@@ -46,11 +60,18 @@ const TemplatePage = ({ params }: { params: templateSlugProps }) => {
       setisLoading(false);
     } catch (error) {
       console.log(error);
+      setisLoading(false);
     }
   };
+
   const onSubmit = async (formData: FormData) => {
     generateAIContent(formData);
   };
+
+  if (!selectedTemplate) {
+    return <div>Loading...</div>;
+  }
+
   return (
     <div className="mx-5 py-2">
       <div className="mt-5 py-6 px-4 bg-white rounded">
@@ -59,12 +80,12 @@ const TemplatePage = ({ params }: { params: templateSlugProps }) => {
 
       <form action={onSubmit}>
         <div className="flex flex-col gap-4 p-5 mt-5 bg-white">
-          {selectedTemplate?.form?.map((form) => (
-            <div key={selectedTemplate.slug}>
+          {selectedTemplate?.form?.map((form, index) => (
+            <div key={`${selectedTemplate.slug}-${index}`}>
               <label>{form.label}</label>
               {form.field === "input" ? (
                 <div className="mt-5">
-                  <Input name="title"></Input>
+                  <Input name="title" />
                 </div>
               ) : (
                 <div className="mt-5">
