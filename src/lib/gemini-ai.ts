@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const apiKey = process.env.GEMINI_API_KEY;
-const genAI = new GoogleGenerativeAI(apiKey as string);
+const genAI = new GoogleGenerativeAI(apiKey);
 
 const model = genAI.getGenerativeModel({
   model: "gemini-1.5-flash",
@@ -15,7 +15,11 @@ const generationConfig = {
   responseMimeType: "text/plain",
 };
 
-export const chatSession = model.startChat({
-  generationConfig: generationConfig,
-  history: [],
-});
+// Initialize the chat session
+export const initializeChatSession = async () => {
+  const chatSession = await model.startChat({
+    generationConfig,
+    history: [],
+  });
+  return chatSession;
+};

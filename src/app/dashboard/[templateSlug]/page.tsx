@@ -7,7 +7,7 @@ import { contentTemplates } from "@/lib/content-templates";
 import { Loader } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Editor } from "./_components/editor";
-import { chatSession } from "@/lib/gemini-ai";
+import { initializeChatSession } from "@/lib/gemini-ai";
 import axios from "axios";
 
 interface templateSlugProps {
@@ -17,9 +17,9 @@ interface templateSlugProps {
 const TemplatePage = ({ params }: { params: Promise<templateSlugProps> }) => {
   const [isLoading, setisLoading] = useState(false);
   const [aiOutput, setAIOutput] = useState<string>("");
-
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   const [resolvedParams, setResolvedParams] = useState<templateSlugProps | null>(null);
+  const [chatSession, setChatSession] = useState<any>(null);
 
   // Unwrapping the promise to access params correctly
   useEffect(() => {
@@ -37,6 +37,15 @@ const TemplatePage = ({ params }: { params: Promise<templateSlugProps> }) => {
     }
   }, [resolvedParams]);
 
+  useEffect(() => {
+    const fetchChatSession = async () => {
+      const session = await initializeChatSession();
+      setChatSession(session);
+    };
+
+    fetchChatSession();
+  }, []);
+
   const generateAIContent = async (formData: FormData) => {
     setisLoading(true);
     try {
@@ -44,27 +53,32 @@ const TemplatePage = ({ params }: { params: Promise<templateSlugProps> }) => {
         title: formData.get("title"),
         description: formData.get("description"),
       };
-
+  
       const selectedPrompt = selectedTemplate?.aiPrompt;
       const finalAIPrompt = JSON.stringify(dataSet) + ", " + selectedPrompt;
-
-      const result = await chatSession.sendMessage(finalAIPrompt);
-      setAIOutput(result.response.text());
-
-      const response = await axios.post("/api/", {
+  
+      const response = await axios.post("/api/chat", { prompt: finalAIPrompt });
+      setAIOutput(response.data.response);
+  
+      // Sending the generated content to another API
+      await axios.post("/api/", {
         title: dataSet.title,
-        description: result.response.text(),
+        description: response.data.response,
         templateUsed: selectedTemplate?.name,
       });
-      console.log("response: " + response);
+  
       setisLoading(false);
     } catch (error) {
-      console.log(error);
+      console.error(error);
       setisLoading(false);
+      setAIOutput("Error generating content. Please try again.");
     }
   };
+  
 
-  const onSubmit = async (formData: FormData) => {
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
     generateAIContent(formData);
   };
 
@@ -78,7 +92,7 @@ const TemplatePage = ({ params }: { params: Promise<templateSlugProps> }) => {
         <h2 className="font-medium">{selectedTemplate?.name}</h2>
       </div>
 
-      <form action={onSubmit}>
+      <form onSubmit={onSubmit}>
         <div className="flex flex-col gap-4 p-5 mt-5 bg-white">
           {selectedTemplate?.form?.map((form, index) => (
             <div key={`${selectedTemplate.slug}-${index}`}>
@@ -97,7 +111,7 @@ const TemplatePage = ({ params }: { params: Promise<templateSlugProps> }) => {
         </div>
         <Button className="mt-5" type="submit">
           {isLoading ? (
-            <Loader className="animate-spin"></Loader>
+            <Loader className="animate-spin" />
           ) : (
             "Generate Content"
           )}
